@@ -1,33 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Medical Facility Locator</title>
 
     <!-- Leaflet CSS -->
-    <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet/dist/leaflet.css"
-    />
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
 
     <div class="container">
         <h1>Medical Facility Locator</h1>
 
-        <div class="search-box">
-            <input
-                type="text"
-                id="address"
-                placeholder="Enter an address"
-            >
-
-            <button onclick="searchFacilities()">
-                Search
-            </button>
+        <div class="search">
+            <input id="address" type="text" placeholder="Enter address..." />
+            <button id="searchBtn">Search</button>
         </div>
 
         <div id="status"></div>
@@ -38,8 +30,10 @@
     </div>
 
     <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <!-- Your script -->
     <script src="script.js"></script>
+
 </body>
 </html>
