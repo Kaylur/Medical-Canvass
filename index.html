@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical Facility Locator</title>
+
+    <!-- Leaflet CSS -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet/dist/leaflet.css"
+    />
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>Medical Facility Locator</h1>
+
+        <div class="search-box">
+            <input
+                type="text"
+                id="address"
+                placeholder="Enter an address"
+            >
+
+            <button onclick="searchFacilities()">
+                Search
+            </button>
+        </div>
+
+        <div id="status"></div>
+
+        <div id="map"></div>
+
+        <div id="results"></div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <script src="script.js"></script>
+</body>
+</html>
