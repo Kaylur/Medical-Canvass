@@ -9,7 +9,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-/* Fix map rendering in flex layout */
+/* Fix map render inside flex layout */
 setTimeout(() => map.invalidateSize(), 300);
 window.addEventListener("resize", () => map.invalidateSize());
 
@@ -21,6 +21,11 @@ let userLat = null;
 let userLon = null;
 let searchRadiusMiles = 10;
 let searchTimeout = null;
+
+/* =======================
+   GOOGLE API 
+======================= */
+const GOOGLE_API_KEY = "AIzaSyBj-dyxJUvX_0i7VBsc36OAUZnv2u8lJ_I";
 
 /* =======================
    UTILITIES
@@ -42,13 +47,11 @@ function getDistanceMiles(lat1, lon1, lat2, lon2) {
         Math.cos(lat2 * Math.PI / 180) *
         Math.sin(dLon / 2) ** 2;
 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c;
+    return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * R;
 }
 
 function formatAddress(tags) {
-    if (!tags) return "Address not available";
+    if (!tags) return null;
 
     if (tags["addr:full"]) return tags["addr:full"];
 
@@ -60,7 +63,7 @@ function formatAddress(tags) {
         tags["addr:postcode"]
     ].filter(Boolean);
 
-    return parts.length ? parts.join(", ") : "Address not available";
+    return parts.length ? parts.join(", ") : null;
 }
 
 function formatPhone(phone) {
@@ -83,29 +86,29 @@ function openGoogleMaps(lat, lon) {
 }
 
 /* =======================
-   SPECIALTY ENGINE
+   SPECIALTY CLASSIFIER
 ======================= */
 function classifySpecialty(tags) {
-    const text = ((tags.name || "") + " " + JSON.stringify(tags)).toLowerCase();
+    const t = ((tags.name || "") + " " + JSON.stringify(tags)).toLowerCase();
 
-    if (text.includes("ortho")) return "orthopedics";
-    if (text.includes("urgent")) return "urgent_care";
-    if (text.includes("pediatric")) return "pediatrics";
-    if (text.includes("family")) return "family_medicine";
-    if (text.includes("primary")) return "primary_care";
-    if (text.includes("chiro")) return "chiropractor";
-    if (text.includes("neuro")) return "neurology";
-    if (text.includes("cardio")) return "cardiology";
-    if (text.includes("derma")) return "dermatology";
-    if (text.includes("oncolog")) return "oncology";
-    if (text.includes("radiolog")) return "radiology";
-    if (text.includes("dent")) return "dentistry";
+    if (t.includes("ortho")) return "orthopedics";
+    if (t.includes("urgent")) return "urgent_care";
+    if (t.includes("pediatric")) return "pediatrics";
+    if (t.includes("family")) return "family_medicine";
+    if (t.includes("primary")) return "primary_care";
+    if (t.includes("chiro")) return "chiropractor";
+    if (t.includes("neuro")) return "neurology";
+    if (t.includes("cardio")) return "cardiology";
+    if (t.includes("derma")) return "dermatology";
+    if (t.includes("oncolog")) return "oncology";
+    if (t.includes("radiolog")) return "radiology";
+    if (t.includes("dent")) return "dentistry";
 
     return "unknown";
 }
 
 /* =======================
-   GEOCODE
+   GEOCODING
 ======================= */
 async function geocode(address) {
 
@@ -118,9 +121,9 @@ async function geocode(address) {
     let data;
     try {
         data = JSON.parse(text);
-    } catch (e) {
-        console.error("Geocode error response:", text);
-        throw new Error("Geocoding service error");
+    } catch (err) {
+        console.error("Geocode invalid response:", text);
+        throw new Error("Geocoding failed");
     }
 
     if (!data.length) throw new Error("Location not found");
@@ -132,11 +135,10 @@ async function geocode(address) {
 }
 
 /* =======================
-   OVERPASS (FIXED + SAFE)
+   OVERPASS QUERY (SAFE)
 ======================= */
 async function searchPlaces(lat, lon, radius) {
 
-    /* prevent huge queries (reduces Overpass failures) */
     const safeRadius = Math.min(radius, 25);
 
     const query = `
@@ -150,14 +152,11 @@ async function searchPlaces(lat, lon, radius) {
 out center tags;
 `;
 
-    /* small delay helps avoid rate limits */
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 500));
 
     const res = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST",
-        headers: {
-            "Content-Type": "text/plain"
-        },
+        headers: { "Content-Type": "text/plain" },
         body: query
     });
 
@@ -167,56 +166,112 @@ out center tags;
         const json = JSON.parse(text);
 
         if (!json || !json.elements) {
-            throw new Error("Invalid Overpass response structure");
+            throw new Error("Bad Overpass structure");
         }
 
         return json;
 
-    } catch (e) {
-        console.error("Overpass raw response:", text);
-        throw new Error("Overpass API error (rate limit or timeout)");
+    } catch (err) {
+        console.error("Overpass raw:", text);
+        throw new Error("Overpass API failed or rate limited");
     }
 }
 
 /* =======================
-   RENDER RESULTS
+   GOOGLE FALLBACK (SAFE HOOK ONLY)
 ======================= */
-function renderResults(data) {
+async function googleFallback(lat, lon) {
+    try {
+        // NOTE: This is intentionally disabled without API key
+        if (GOOGLE_API_KEY === "AIzaSyBj-dyxJUvX_0i7VBsc36OAUZnv2u8lJ_I") return [];
 
-    const resultsDiv = document.getElementById("results");
-    const status = document.getElementById("status");
+        const url =
+            `https://maps.googleapis.com/maps/api/place/nearbysearch/json` +
+            `?location=${lat},${lon}` +
+            `&radius=50000&type=hospital&key=${GOOGLE_API_KEY}`;
 
-    resultsDiv.innerHTML = "";
-    clearMarkers();
+        const res = await fetch(url);
+        const data = await res.json();
 
-    const typeFilter = document.getElementById("typeFilter").value;
-    const specFilter = document.getElementById("specialtyFilter").value;
+        return data.results || [];
 
-    if (!data || !data.length) {
-        resultsDiv.innerHTML = `<p>No results found.</p>`;
-        return;
+    } catch (err) {
+        console.warn("Google fallback failed:", err);
+        return [];
     }
+}
 
-    const enriched = data.map(p => {
+/* =======================
+   ENRICHMENT (FIXES MISSING DATA)
+======================= */
+async function enrichPlaces(overpassData) {
+
+    const googleData = await googleFallback(userLat, userLon);
+
+    const googleIndex = new Map();
+
+    // index google results by name (basic dedupe)
+    googleData.forEach(g => {
+        if (g.name) googleIndex.set(g.name.toLowerCase(), g);
+    });
+
+    return overpassData.map(p => {
+
         const tags = p.tags || {};
         const lat = p.lat || p.center?.lat;
         const lon = p.lon || p.center?.lon;
 
         if (!lat || !lon) return null;
 
+        let name = tags.name;
+        let phone = tags.phone || tags["contact:phone"];
+        let address = formatAddress(tags);
+
+        /* fallback enrichment */
+        if (!name || !phone || !address) {
+
+            const match = googleIndex.get((name || "").toLowerCase());
+
+            if (match) {
+                name = name || match.name;
+                phone = phone || match.formatted_phone_number;
+                address = address || match.vicinity || match.formatted_address;
+            }
+        }
+
         return {
             ...p,
-            tags,
+            tags: {
+                ...tags,
+                name,
+                phone,
+                "addr:full": address
+            },
             lat,
             lon,
             specialty: classifySpecialty(tags),
             distance: getDistanceMiles(userLat, userLon, lat, lon)
         };
     }).filter(Boolean);
+}
 
-    const filtered = enriched.filter(p => {
+/* =======================
+   RENDER UI
+======================= */
+function renderResults(data) {
 
-        const t = p.tags;
+    const results = document.getElementById("results");
+    const status = document.getElementById("status");
+
+    results.innerHTML = "";
+    clearMarkers();
+
+    const typeFilter = document.getElementById("typeFilter").value;
+    const specFilter = document.getElementById("specialtyFilter").value;
+
+    const filtered = data.filter(p => {
+
+        const t = p.tags || {};
 
         if (typeFilter !== "all") {
             if (t.amenity !== typeFilter && t.healthcare !== typeFilter) {
@@ -235,8 +290,8 @@ function renderResults(data) {
 
     filtered.forEach(p => {
 
-        const name = p.tags.name || "Unnamed Facility";
-        const address = formatAddress(p.tags);
+        const name = p.tags.name || "Medical Facility";
+        const address = p.tags["addr:full"] || "Address not available";
         const phone = formatPhone(p.tags.phone || p.tags["contact:phone"]);
         const dist = p.distance.toFixed(2);
 
@@ -281,7 +336,6 @@ function renderResults(data) {
             btn.onclick = (e) => {
                 e.stopPropagation();
                 copyToClipboard(btn.previousElementSibling.innerText);
-
                 btn.innerText = "Copied";
                 setTimeout(() => btn.innerText = "Copy", 1000);
             };
@@ -292,7 +346,7 @@ function renderResults(data) {
             openGoogleMaps(p.lat, p.lon);
         };
 
-        resultsDiv.appendChild(div);
+        results.appendChild(div);
     });
 
     status.textContent =
@@ -325,9 +379,11 @@ async function runSearch() {
 
         status.textContent = "Searching nearby facilities...";
 
-        const data = await searchPlaces(userLat, userLon, searchRadiusMiles);
+        const overpass = await searchPlaces(userLat, userLon, searchRadiusMiles);
 
-        renderResults(data.elements || []);
+        const enriched = await enrichPlaces(overpass.elements || []);
+
+        renderResults(enriched);
 
     } catch (err) {
         console.error(err);
