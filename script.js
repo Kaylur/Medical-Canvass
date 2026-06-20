@@ -1,23 +1,21 @@
 console.log("script.js loaded");
 
-/* ---------------- MAP INIT ---------------- */
 let map = L.map('map').setView([39.8283, -98.5795], 4);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-/* ---------------- STATE ---------------- */
+/* STATE */
 let markers = [];
 let userLat = null;
 let userLon = null;
 let searchRadiusMiles = 10;
-
 let searchTimeout = null;
 
-/* ---------------- UTILS ---------------- */
+/* ---------------- UTILITIES ---------------- */
 function clearMarkers() {
-    markers.forEach(marker => map.removeLayer(marker));
+    markers.forEach(m => map.removeLayer(m));
     markers = [];
 }
 
@@ -33,14 +31,7 @@ function getDistanceMiles(lat1, lon1, lat2, lon2) {
         Math.cos(lat2 * Math.PI / 180) *
         Math.sin(dLon / 2) ** 2;
 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c;
-}
-
-function cleanText(value, fallback) {
-    if (!value || value.trim() === "") return fallback;
-    return value;
+    return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * R;
 }
 
 function formatAddress(tags) {
@@ -59,187 +50,216 @@ function formatAddress(tags) {
     return parts.length ? parts.join(", ") : "Address not available";
 }
 
-/* ---------------- GEOCODE ---------------- */
-async function geocodeAddress(address) {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
+function formatPhone(phone) {
+    if (!phone) return null;
 
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Geocoding request failed");
+    const d = phone.replace(/\D/g, "");
+
+    if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+    if (d.length === 11 && d[0] === "1") return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+
+    return phone;
+}
+
+function copy(text) {
+    navigator.clipboard.writeText(text);
+}
+
+function openMap(lat, lon) {
+    window.open(`https://www.google.com/maps?q=${lat},${lon}`, "_blank");
+}
+
+/* ---------------- SPECIALTY ENGINE ---------------- */
+function classify(tags) {
+    const t = ((tags.name || "") + " " + JSON.stringify(tags)).toLowerCase();
+
+    if (t.includes("ortho")) return "orthopedics";
+    if (t.includes("urgent")) return "urgent_care";
+    if (t.includes("pediatric")) return "pediatrics";
+    if (t.includes("family")) return "family_medicine";
+    if (t.includes("primary")) return "primary_care";
+    if (t.includes("chiro")) return "chiropractor";
+    if (t.includes("neuro")) return "neurology";
+    if (t.includes("cardio")) return "cardiology";
+    if (t.includes("derma")) return "dermatology";
+    if (t.includes("oncolog")) return "oncology";
+    if (t.includes("radiolog")) return "radiology";
+    if (t.includes("dent")) return "dentistry";
+
+    return "unknown";
+}
+
+/* ---------------- GEOCODE ---------------- */
+async function geocode(address) {
+    const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`
+    );
 
     const data = await res.json();
-    if (!data.length) throw new Error("Address not found");
+    if (!data.length) throw new Error("Not found");
 
-    return {
-        lat: parseFloat(data[0].lat),
-        lon: parseFloat(data[0].lon)
-    };
+    return { lat: +data[0].lat, lon: +data[0].lon };
 }
 
 /* ---------------- OVERPASS ---------------- */
-async function findHospitals(lat, lon, radiusMiles) {
+async function search(lat, lon, radius) {
 
-    const query = `
+    const q = `
 [out:json][timeout:25];
 (
-  node["amenity"="hospital"](around:${radiusMiles * 1609.34},${lat},${lon});
-  way["amenity"="hospital"](around:${radiusMiles * 1609.34},${lat},${lon});
-  relation["amenity"="hospital"](around:${radiusMiles * 1609.34},${lat},${lon});
+ node["amenity"~"hospital|clinic|doctors|dentist"](around:${radius * 1609.34},${lat},${lon});
+ way["amenity"~"hospital|clinic|doctors|dentist"](around:${radius * 1609.34},${lat},${lon});
+ relation["amenity"~"hospital|clinic|doctors|dentist"](around:${radius * 1609.34},${lat},${lon});
+ node["healthcare"](around:${radius * 1609.34},${lat},${lon});
 );
 out center tags;
 `;
 
     const res = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST",
-        body: query
+        body: q
     });
-
-    if (!res.ok) throw new Error("Hospital search failed");
 
     return await res.json();
 }
 
-/* ---------------- DISPLAY (PRO STYLE) ---------------- */
-function displayResults(elements) {
-    const resultsDiv = document.getElementById("results");
+/* ---------------- DISPLAY ---------------- */
+function render(data) {
+    const results = document.getElementById("results");
     const status = document.getElementById("status");
 
-    resultsDiv.innerHTML = "";
+    results.innerHTML = "";
     clearMarkers();
 
-    if (!elements || elements.length === 0) {
-        resultsDiv.innerHTML = `<p class="empty">No hospitals found nearby.</p>`;
-        return;
-    }
+    const typeFilter = document.getElementById("typeFilter").value;
+    const specFilter = document.getElementById("specialtyFilter").value;
 
-    const enriched = elements.map(place => {
-        const tags = place.tags || {};
-
-        const lat = place.lat || place.center?.lat;
-        const lon = place.lon || place.center?.lon;
+    const enriched = data.map(p => {
+        const tags = p.tags || {};
+        const lat = p.lat || p.center?.lat;
+        const lon = p.lon || p.center?.lon;
 
         if (!lat || !lon) return null;
 
-        const distance = getDistanceMiles(userLat, userLon, lat, lon);
-
         return {
-            ...place,
+            ...p,
             tags,
             lat,
             lon,
-            distance
+            specialty: classify(tags),
+            distance: getDistanceMiles(userLat, userLon, lat, lon)
         };
     }).filter(Boolean);
 
-    enriched.sort((a, b) => a.distance - b.distance);
+    const filtered = enriched.filter(p => {
+        const t = p.tags;
 
-    enriched.forEach(place => {
-        const tags = place.tags;
+        if (typeFilter !== "all") {
+            if (t.amenity !== typeFilter) return false;
+        }
 
-        const name = cleanText(tags.name, "Unnamed Hospital");
-        const address = formatAddress(tags);
-        const phone = cleanText(tags.phone || tags["contact:phone"], null);
+        if (specFilter !== "all" && p.specialty !== specFilter) return false;
 
-        const distanceText = place.distance.toFixed(2);
+        return true;
+    });
 
-        /* -------- MARKER -------- */
-        const marker = L.marker([place.lat, place.lon])
+    filtered.sort((a, b) => a.distance - b.distance);
+
+    filtered.forEach(p => {
+
+        const name = p.tags.name || "Unnamed";
+        const address = formatAddress(p.tags);
+        const phone = formatPhone(p.tags.phone || p.tags["contact:phone"]);
+        const dist = p.distance.toFixed(2);
+
+        const marker = L.marker([p.lat, p.lon])
             .addTo(map)
-            .bindPopup(`
-                <b>${name}</b><br>
-                ${distanceText} miles
-            `);
+            .bindPopup(name);
 
         markers.push(marker);
 
-        /* -------- RESULT CARD (SIDEBAR STYLE) -------- */
         const div = document.createElement("div");
         div.className = "result-card";
 
         div.innerHTML = `
             <div class="card-header">
                 <h3>${name}</h3>
-                <span class="distance">${distanceText} mi</span>
+                <span class="distance">${dist} mi</span>
             </div>
 
             <div class="card-body">
-                <p>${address !== "Address not available" ? address : ""}</p>
-                ${phone ? `<p>${phone}</p>` : ""}
+
+                <div class="field-row">
+                    <span>${address}</span>
+                    <button class="copy-btn">Copy</button>
+                </div>
+
+                ${phone ? `
+                <div class="field-row">
+                    <span>${phone}</span>
+                    <button class="copy-btn">Copy</button>
+                </div>` : ""}
+
+                <div class="action-row">
+                    <button class="map-btn">Open in Google Maps</button>
+                </div>
             </div>
         `;
 
-        /* click card ? zoom map */
-        div.addEventListener("click", () => {
-            map.setView([place.lat, place.lon], 15);
+        div.querySelectorAll(".copy-btn").forEach(btn => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                copy(btn.previousElementSibling.innerText);
+                btn.innerText = "Copied";
+                setTimeout(() => btn.innerText = "Copy", 1000);
+            };
         });
 
-        resultsDiv.appendChild(div);
+        div.querySelector(".map-btn").onclick = (e) => {
+            e.stopPropagation();
+            openMap(p.lat, p.lon);
+        };
+
+        div.onclick = () => map.setView([p.lat, p.lon], 15);
+
+        results.appendChild(div);
     });
 
     status.textContent =
-        `Found ${enriched.length} hospitals within ${searchRadiusMiles} miles (sorted by distance).`;
+        `Found ${filtered.length} results within ${searchRadiusMiles} miles`;
 }
 
-/* ---------------- SEARCH CORE ---------------- */
-async function searchFacilities() {
-    const address = document.getElementById("address").value.trim();
-    const status = document.getElementById("status");
+/* ---------------- MAIN ---------------- */
+async function run() {
+    const addr = document.getElementById("address").value;
+    if (!addr) return alert("Enter address");
 
-    if (!address) {
-        alert("Please enter an address");
-        return;
-    }
+    const loc = await geocode(addr);
+    userLat = loc.lat;
+    userLon = loc.lon;
 
-    try {
-        status.textContent = "Locating address...";
+    map.setView([userLat, userLon], 12);
 
-        const location = await geocodeAddress(address);
+    const data = await search(userLat, userLon, searchRadiusMiles);
 
-        userLat = location.lat;
-        userLon = location.lon;
-
-        map.setView([userLat, userLon], 12);
-
-        L.marker([userLat, userLon])
-            .addTo(map)
-            .bindPopup("Search Location");
-
-        status.textContent = "Searching hospitals...";
-
-        const hospitals = await findHospitals(
-            userLat,
-            userLon,
-            searchRadiusMiles
-        );
-
-        displayResults(hospitals.elements || []);
-
-    } catch (err) {
-        console.error(err);
-        status.textContent = "Error: " + err.message;
-    }
+    render(data.elements || []);
 }
 
-/* ---------------- INIT UI ---------------- */
+/* ---------------- INIT ---------------- */
 document.addEventListener("DOMContentLoaded", () => {
-    const btn = document.getElementById("searchBtn");
+
+    document.getElementById("searchBtn").onclick = run;
+
     const slider = document.getElementById("radius");
-    const radiusLabel = document.getElementById("radiusValue");
+    const label = document.getElementById("radiusValue");
 
-    btn.addEventListener("click", searchFacilities);
+    slider.oninput = () => {
+        searchRadiusMiles = +slider.value;
+        label.textContent = searchRadiusMiles;
 
-    /* live slider UX */
-    slider.addEventListener("input", () => {
-        searchRadiusMiles = parseInt(slider.value);
-        radiusLabel.textContent = searchRadiusMiles;
-
-        /* debounce auto-refresh */
         if (userLat && userLon) {
             clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                searchFacilities();
-            }, 500);
+            searchTimeout = setTimeout(run, 400);
         }
-    });
-
-    console.log("Pro search system ready");
+    };
 });
