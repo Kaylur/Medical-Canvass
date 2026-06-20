@@ -35,7 +35,7 @@ function getDistanceMiles(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-/* ---------------- GEOCODE ADDRESS ---------------- */
+/* ---------------- GEOCODE ---------------- */
 async function geocodeAddress(address) {
     const url =
         `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
@@ -43,7 +43,7 @@ async function geocodeAddress(address) {
     const res = await fetch(url);
 
     if (!res.ok) {
-        throw new Error(`Geocoding failed (${res.status})`);
+        throw new Error("Geocoding request failed");
     }
 
     const data = await res.json();
@@ -58,7 +58,7 @@ async function geocodeAddress(address) {
     };
 }
 
-/* ---------------- OVERPASS HOSPITAL SEARCH ---------------- */
+/* ---------------- OVERPASS SEARCH ---------------- */
 async function findHospitals(lat, lon) {
     const query = `
 [out:json][timeout:25];
@@ -70,28 +70,24 @@ async function findHospitals(lat, lon) {
 out center tags;
 `;
 
-    const res = await fetch(
-        "https://overpass-api.de/api/interpreter",
-        {
-            method: "POST",
-            body: query
-        }
-    );
+    const res = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: query
+    });
 
     if (!res.ok) {
-        throw new Error(`Hospital search failed (${res.status})`);
+        throw new Error("Hospital search failed");
     }
 
     return await res.json();
 }
 
-/* ---------------- FORMAT ADDRESS ---------------- */
+/* ---------------- FORMAT ADDRESS (IMPROVED) ---------------- */
 function formatAddress(tags) {
     if (!tags) return "Address not available";
 
-    if (tags["addr:full"]) {
-        return tags["addr:full"];
-    }
+    // best possible full address first
+    if (tags["addr:full"]) return tags["addr:full"];
 
     const parts = [
         tags["addr:housenumber"],
@@ -101,9 +97,15 @@ function formatAddress(tags) {
         tags["addr:postcode"]
     ].filter(Boolean);
 
-    return parts.length
+    return parts.length > 0
         ? parts.join(", ")
         : "Address not available";
+}
+
+/* ---------------- CLEAN FIELD HELPERS ---------------- */
+function cleanText(value, fallback) {
+    if (!value || value.trim() === "") return fallback;
+    return value;
 }
 
 /* ---------------- DISPLAY RESULTS ---------------- */
@@ -119,83 +121,83 @@ function displayResults(elements) {
         return;
     }
 
-    const enriched = elements
-        .map(place => {
-            const tags = place.tags || {};
+    // enrich with distance
+    const enriched = elements.map(place => {
+        const tags = place.tags || {};
 
-            const lat = place.lat || place.center?.lat;
-            const lon = place.lon || place.center?.lon;
+        const lat = place.lat || place.center?.lat;
+        const lon = place.lon || place.center?.lon;
 
-            if (!lat || !lon) return null;
+        if (!lat || !lon) return null;
 
-            const distance = getDistanceMiles(
-                userLat,
-                userLon,
-                lat,
-                lon
-            );
+        const distance = getDistanceMiles(
+            userLat,
+            userLon,
+            lat,
+            lon
+        );
 
-            return {
-                ...place,
-                tags,
-                lat,
-                lon,
-                distance
-            };
-        })
-        .filter(Boolean);
+        return {
+            ...place,
+            tags,
+            lat,
+            lon,
+            distance
+        };
+    }).filter(Boolean);
 
+    // sort closest first
     enriched.sort((a, b) => a.distance - b.distance);
 
     enriched.forEach(place => {
-        const name =
-            place.tags.name || "Unnamed Hospital";
+        const tags = place.tags;
 
-        const address =
-            formatAddress(place.tags);
+        const name = cleanText(tags.name, "Unnamed Hospital");
+        const address = formatAddress(tags);
 
-        const phone =
-            place.tags.phone ||
-            place.tags["contact:phone"] ||
-            "Phone not available";
+        const phone = cleanText(
+            tags.phone || tags["contact:phone"],
+            "Phone not available"
+        );
 
-        const distanceText =
-            place.distance.toFixed(2);
+        const distanceText = place.distance.toFixed(2);
 
-        const marker = L.marker([
-            place.lat,
-            place.lon
-        ])
+        // marker
+        const marker = L.marker([place.lat, place.lon])
             .addTo(map)
-            .bindPopup(
-                `<b>${name}</b><br>${distanceText} miles`
-            );
+            .bindPopup(`
+                <b>${name}</b><br>
+                ${distanceText} miles
+            `);
 
         markers.push(marker);
 
+        // result card (cleaned output)
         const div = document.createElement("div");
         div.className = "result-card";
 
         div.innerHTML = `
             <h3>${name}</h3>
+
             <p><strong>Distance:</strong> ${distanceText} miles</p>
-            <p><strong>Address:</strong> ${address}</p>
-            <p><strong>Phone:</strong> ${phone}</p>
+
+            ${address !== "Address not available"
+                ? `<p><strong>Address:</strong> ${address}</p>`
+                : ""}
+
+            ${phone !== "Phone not available"
+                ? `<p><strong>Phone:</strong> ${phone}</p>`
+                : ""}
         `;
 
         resultsDiv.appendChild(div);
     });
 }
 
-/* ---------------- MAIN SEARCH ---------------- */
+/* ---------------- SEARCH FUNCTION ---------------- */
 async function searchFacilities() {
-    console.log("Search button clicked");
-
-    const address =
-        document.getElementById("address").value.trim();
-
-    const status =
-        document.getElementById("status");
+    const address = document.getElementById("address").value.trim();
+    const status = document.getElementById("status");
 
     if (!address) {
         alert("Please enter an address");
@@ -205,62 +207,35 @@ async function searchFacilities() {
     try {
         status.textContent = "Searching...";
 
-        const location =
-            await geocodeAddress(address);
+        const location = await geocodeAddress(address);
 
         userLat = location.lat;
         userLon = location.lon;
 
         map.setView([userLat, userLon], 12);
 
-        const userMarker = L.marker([
-            userLat,
-            userLon
-        ])
+        L.marker([userLat, userLon])
             .addTo(map)
             .bindPopup("Search Location");
 
-        markers.push(userMarker);
+        const hospitals = await findHospitals(userLat, userLon);
 
-        const hospitals =
-            await findHospitals(
-                userLat,
-                userLon
-            );
-
-        displayResults(
-            hospitals.elements || []
-        );
+        displayResults(hospitals.elements || []);
 
         status.textContent =
-            `Found ${hospitals.elements.length} hospitals (sorted by distance).`;
+            `Found ${hospitals.elements.length} hospitals (closest first).`;
 
     } catch (err) {
         console.error(err);
-
-        status.textContent =
-            "Error: " + err.message;
+        status.textContent = "Error: " + err.message;
     }
 }
 
-/* ---------------- CONNECT BUTTON ---------------- */
+/* ---------------- BUTTON HOOK ---------------- */
 document.addEventListener("DOMContentLoaded", () => {
-    console.log("DOM loaded");
+    document
+        .getElementById("searchBtn")
+        .addEventListener("click", searchFacilities);
 
-    const searchBtn =
-        document.getElementById("searchBtn");
-
-    if (!searchBtn) {
-        console.error(
-            "Could not find searchBtn element"
-        );
-        return;
-    }
-
-    searchBtn.addEventListener(
-        "click",
-        searchFacilities
-    );
-
-    console.log("Search button connected");
+    console.log("Search ready");
 });
