@@ -11,66 +11,64 @@
 
 <body>
 
-    <div class="container">
+        <div class="app">
 
-        <h1>Medical Locator Pro</h1>
+            <!-- LEFT SIDEBAR -->
+            <div class="sidebar">
 
-        <!-- FILTERS -->
-        <div class="filters">
+                <h1>Medical Locator</h1>
 
-            <div class="filter-group">
-                <label>Facility Type</label>
-                <select id="typeFilter">
-                    <option value="all">All</option>
-                    <option value="hospital">Hospital</option>
-                    <option value="clinic">Clinic</option>
-                    <option value="doctors">Doctor</option>
-                    <option value="dentist">Dentist</option>
-                </select>
+                <!-- SEARCH -->
+                <div class="search">
+                    <input id="address" type="text" placeholder="Enter address..." />
+                    <button id="searchBtn">Search</button>
+
+                    <div class="radius-control">
+                        <label>Radius: <span id="radiusValue">10</span> miles</label>
+                        <input id="radius" type="range" min="5" max="50" value="10" />
+                    </div>
+                </div>
+
+                <!-- FILTERS -->
+                <div class="filters">
+
+                    <label>Facility Type</label>
+                    <select id="typeFilter">
+                        <option value="all">All</option>
+                        <option value="hospital">Hospital</option>
+                        <option value="clinic">Clinic</option>
+                        <option value="doctors">Doctors</option>
+                        <option value="dentist">Dentist</option>
+                    </select>
+
+                    <label>Specialty</label>
+                    <select id="specialtyFilter">
+                        <option value="all">All Specialties</option>
+                        <option value="cardiology">Cardiology</option>
+                        <option value="neurology">Neurology</option>
+                        <option value="orthopedics">Orthopedics</option>
+                        <option value="pediatrics">Pediatrics</option>
+                        <option value="dermatology">Dermatology</option>
+                        <option value="oncology">Oncology</option>
+                    </select>
+
+                </div>
+
+                <div id="status"></div>
+
+                <!-- RESULTS -->
+                <div id="results"></div>
+
             </div>
 
-            <div class="filter-group">
-                <label>Specialty</label>
-                <select id="specialtyFilter">
-                    <option value="all">All Specialties</option>
-                    <option value="orthopedics">Orthopedics</option>
-                    <option value="urgent_care">Urgent Care</option>
-                    <option value="primary_care">Primary Care</option>
-                    <option value="family_medicine">Family Medicine</option>
-                    <option value="pediatrics">Pediatrics</option>
-                    <option value="chiropractor">Chiropractor</option>
-                    <option value="neurology">Neurology</option>
-                    <option value="cardiology">Cardiology</option>
-                    <option value="dermatology">Dermatology</option>
-                    <option value="oncology">Oncology</option>
-                    <option value="radiology">Radiology</option>
-                    <option value="dentistry">Dentistry</option>
-                </select>
-            </div>
+            <!-- RIGHT MAP -->
+            <div id="map"></div>
 
         </div>
 
-        <!-- SEARCH -->
-        <div class="search">
-            <input id="address" type="text" placeholder="Enter address..." />
-            <button id="searchBtn">Search</button>
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script src="script.js"></script>
 
-            <div class="radius-control">
-                <label>Radius: <span id="radiusValue">10</span> miles</label>
-                <input id="radius" type="range" min="5" max="50" value="10" />
-            </div>
-        </div>
-
-        <div id="status"></div>
-
-        <div id="map"></div>
-
-        <div id="results"></div>
-
-    </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="script.js"></script>
 
 </body>
 </html>
