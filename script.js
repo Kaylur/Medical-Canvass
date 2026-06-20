@@ -9,7 +9,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-/* Fix map rendering inside flex layout */
+/* Fix map rendering in flex layout */
 setTimeout(() => map.invalidateSize(), 300);
 window.addEventListener("resize", () => map.invalidateSize());
 
@@ -108,11 +108,21 @@ function classifySpecialty(tags) {
    GEOCODE
 ======================= */
 async function geocode(address) {
+
     const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`
     );
 
-    const data = await res.json();
+    const text = await res.text();
+
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        console.error("Geocode error response:", text);
+        throw new Error("Geocoding service error");
+    }
+
     if (!data.length) throw new Error("Location not found");
 
     return {
@@ -122,31 +132,54 @@ async function geocode(address) {
 }
 
 /* =======================
-   OVERPASS SEARCH
+   OVERPASS (FIXED + SAFE)
 ======================= */
 async function searchPlaces(lat, lon, radius) {
+
+    /* prevent huge queries (reduces Overpass failures) */
+    const safeRadius = Math.min(radius, 25);
 
     const query = `
 [out:json][timeout:25];
 (
- node["amenity"~"hospital|clinic|doctors|dentist"](around:${radius * 1609.34},${lat},${lon});
- way["amenity"~"hospital|clinic|doctors|dentist"](around:${radius * 1609.34},${lat},${lon});
- relation["amenity"~"hospital|clinic|doctors|dentist"](around:${radius * 1609.34},${lat},${lon});
- node["healthcare"](around:${radius * 1609.34},${lat},${lon});
+ node["amenity"~"hospital|clinic|doctors|dentist"](around:${safeRadius * 1609.34},${lat},${lon});
+ way["amenity"~"hospital|clinic|doctors|dentist"](around:${safeRadius * 1609.34},${lat},${lon});
+ relation["amenity"~"hospital|clinic|doctors|dentist"](around:${safeRadius * 1609.34},${lat},${lon});
+ node["healthcare"](around:${safeRadius * 1609.34},${lat},${lon});
 );
 out center tags;
 `;
 
+    /* small delay helps avoid rate limits */
+    await new Promise(r => setTimeout(r, 800));
+
     const res = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST",
+        headers: {
+            "Content-Type": "text/plain"
+        },
         body: query
     });
 
-    return await res.json();
+    const text = await res.text();
+
+    try {
+        const json = JSON.parse(text);
+
+        if (!json || !json.elements) {
+            throw new Error("Invalid Overpass response structure");
+        }
+
+        return json;
+
+    } catch (e) {
+        console.error("Overpass raw response:", text);
+        throw new Error("Overpass API error (rate limit or timeout)");
+    }
 }
 
 /* =======================
-   RENDER UI (SIDEBAR STYLE)
+   RENDER RESULTS
 ======================= */
 function renderResults(data) {
 
@@ -207,14 +240,12 @@ function renderResults(data) {
         const phone = formatPhone(p.tags.phone || p.tags["contact:phone"]);
         const dist = p.distance.toFixed(2);
 
-        /* MARKER */
         const marker = L.marker([p.lat, p.lon])
             .addTo(map)
             .bindPopup(name);
 
         markers.push(marker);
 
-        /* CARD */
         const div = document.createElement("div");
         div.className = "result-card";
 
@@ -244,11 +275,7 @@ function renderResults(data) {
             </div>
         `;
 
-        /* EVENTS */
-
-        div.onclick = () => {
-            map.setView([p.lat, p.lon], 15);
-        };
+        div.onclick = () => map.setView([p.lat, p.lon], 15);
 
         div.querySelectorAll(".copy-btn").forEach(btn => {
             btn.onclick = (e) => {
@@ -296,7 +323,7 @@ async function runSearch() {
             .addTo(map)
             .bindPopup("Search Location");
 
-        status.textContent = "Searching nearby medical facilities...";
+        status.textContent = "Searching nearby facilities...";
 
         const data = await searchPlaces(userLat, userLon, searchRadiusMiles);
 
@@ -309,7 +336,7 @@ async function runSearch() {
 }
 
 /* =======================
-   INIT UI
+   INIT
 ======================= */
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -324,8 +351,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (userLat && userLon) {
             clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(runSearch, 400);
+            searchTimeout = setTimeout(runSearch, 500);
         }
     };
-
 });
