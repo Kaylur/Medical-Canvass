@@ -1,3 +1,5 @@
+console.log("script.js loaded");
+
 let map = L.map('map').setView([39.8283, -98.5795], 4);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -5,7 +7,6 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 let markers = [];
-
 let userLat = null;
 let userLon = null;
 
@@ -40,9 +41,16 @@ async function geocodeAddress(address) {
         `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
 
     const res = await fetch(url);
+
+    if (!res.ok) {
+        throw new Error(`Geocoding failed (${res.status})`);
+    }
+
     const data = await res.json();
 
-    if (!data.length) throw new Error("Address not found");
+    if (!data.length) {
+        throw new Error("Address not found");
+    }
 
     return {
         lat: parseFloat(data[0].lat),
@@ -53,19 +61,26 @@ async function geocodeAddress(address) {
 /* ---------------- OVERPASS HOSPITAL SEARCH ---------------- */
 async function findHospitals(lat, lon) {
     const query = `
-[out:json];
+[out:json][timeout:25];
 (
   node["amenity"="hospital"](around:10000,${lat},${lon});
   way["amenity"="hospital"](around:10000,${lat},${lon});
   relation["amenity"="hospital"](around:10000,${lat},${lon});
 );
-out center;
+out center tags;
 `;
 
-    const res = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST",
-        body: query
-    });
+    const res = await fetch(
+        "https://overpass-api.de/api/interpreter",
+        {
+            method: "POST",
+            body: query
+        }
+    );
+
+    if (!res.ok) {
+        throw new Error(`Hospital search failed (${res.status})`);
+    }
 
     return await res.json();
 }
@@ -74,7 +89,9 @@ out center;
 function formatAddress(tags) {
     if (!tags) return "Address not available";
 
-    if (tags["addr:full"]) return tags["addr:full"];
+    if (tags["addr:full"]) {
+        return tags["addr:full"];
+    }
 
     const parts = [
         tags["addr:housenumber"],
@@ -84,7 +101,9 @@ function formatAddress(tags) {
         tags["addr:postcode"]
     ].filter(Boolean);
 
-    return parts.length ? parts.join(", ") : "Address not available";
+    return parts.length
+        ? parts.join(", ")
+        : "Address not available";
 }
 
 /* ---------------- DISPLAY RESULTS ---------------- */
@@ -95,45 +114,58 @@ function displayResults(elements) {
     clearMarkers();
 
     if (!elements || elements.length === 0) {
-        resultsDiv.innerHTML = "<p>No hospitals found nearby.</p>";
+        resultsDiv.innerHTML =
+            "<p>No hospitals found nearby.</p>";
         return;
     }
 
-    // ENRICH DATA WITH DISTANCE
-    const enriched = elements.map(place => {
-        const tags = place.tags || {};
+    const enriched = elements
+        .map(place => {
+            const tags = place.tags || {};
 
-        const lat = place.lat || place.center?.lat;
-        const lon = place.lon || place.center?.lon;
+            const lat = place.lat || place.center?.lat;
+            const lon = place.lon || place.center?.lon;
 
-        if (!lat || !lon) return null;
+            if (!lat || !lon) return null;
 
-        const distance = getDistanceMiles(userLat, userLon, lat, lon);
+            const distance = getDistanceMiles(
+                userLat,
+                userLon,
+                lat,
+                lon
+            );
 
-        return {
-            ...place,
-            lat,
-            lon,
-            tags,
-            distance
-        };
-    }).filter(Boolean);
+            return {
+                ...place,
+                tags,
+                lat,
+                lon,
+                distance
+            };
+        })
+        .filter(Boolean);
 
-    // SORT BY DISTANCE (closest first)
     enriched.sort((a, b) => a.distance - b.distance);
 
     enriched.forEach(place => {
-        const name = place.tags.name || "Unnamed Hospital";
-        const address = formatAddress(place.tags);
+        const name =
+            place.tags.name || "Unnamed Hospital";
+
+        const address =
+            formatAddress(place.tags);
+
         const phone =
             place.tags.phone ||
             place.tags["contact:phone"] ||
             "Phone not available";
 
-        const distanceText = place.distance.toFixed(2);
+        const distanceText =
+            place.distance.toFixed(2);
 
-        // MAP MARKER
-        const marker = L.marker([place.lat, place.lon])
+        const marker = L.marker([
+            place.lat,
+            place.lon
+        ])
             .addTo(map)
             .bindPopup(
                 `<b>${name}</b><br>${distanceText} miles`
@@ -141,7 +173,6 @@ function displayResults(elements) {
 
         markers.push(marker);
 
-        // RESULT CARD (NO COORDINATES, NO DIRECTIONS)
         const div = document.createElement("div");
         div.className = "result-card";
 
@@ -158,8 +189,13 @@ function displayResults(elements) {
 
 /* ---------------- MAIN SEARCH ---------------- */
 async function searchFacilities() {
-    const address = document.getElementById("address").value.trim();
-    const status = document.getElementById("status");
+    console.log("Search button clicked");
+
+    const address =
+        document.getElementById("address").value.trim();
+
+    const status =
+        document.getElementById("status");
 
     if (!address) {
         alert("Please enter an address");
@@ -169,26 +205,62 @@ async function searchFacilities() {
     try {
         status.textContent = "Searching...";
 
-        const location = await geocodeAddress(address);
+        const location =
+            await geocodeAddress(address);
 
         userLat = location.lat;
         userLon = location.lon;
 
         map.setView([userLat, userLon], 12);
 
-        L.marker([userLat, userLon])
+        const userMarker = L.marker([
+            userLat,
+            userLon
+        ])
             .addTo(map)
             .bindPopup("Search Location");
 
-        const hospitals = await findHospitals(userLat, userLon);
+        markers.push(userMarker);
 
-        displayResults(hospitals.elements || []);
+        const hospitals =
+            await findHospitals(
+                userLat,
+                userLon
+            );
+
+        displayResults(
+            hospitals.elements || []
+        );
 
         status.textContent =
             `Found ${hospitals.elements.length} hospitals (sorted by distance).`;
 
     } catch (err) {
         console.error(err);
-        status.textContent = "Error: " + err.message;
+
+        status.textContent =
+            "Error: " + err.message;
     }
 }
+
+/* ---------------- CONNECT BUTTON ---------------- */
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("DOM loaded");
+
+    const searchBtn =
+        document.getElementById("searchBtn");
+
+    if (!searchBtn) {
+        console.error(
+            "Could not find searchBtn element"
+        );
+        return;
+    }
+
+    searchBtn.addEventListener(
+        "click",
+        searchFacilities
+    );
+
+    console.log("Search button connected");
+});
