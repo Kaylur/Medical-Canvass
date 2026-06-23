@@ -227,12 +227,11 @@ async function enrich(overpassData) {
 
     const enrichedGoogle = [];
 
-    // Fetch full Google details
     for (const g of googleResults) {
         try {
             const details = await googleDetails(g.place_id);
             if (details) enrichedGoogle.push(details);
-        } catch (e) { }
+        } catch { }
     }
 
     return overpassData.map(p => {
@@ -247,39 +246,14 @@ async function enrich(overpassData) {
         let phone = tags.phone || tags["contact:phone"] || "";
         let address = formatAddress(tags);
 
-        const fullText = (name + " " + JSON.stringify(tags)).toLowerCase();
+        const facilityText = (name + " " + JSON.stringify(tags)).toLowerCase();
 
         /* =========================
-           IMPROVED GOOGLE MATCHING
+           1. DISTANCE-FIRST MATCH (SAFE DEFAULT)
         ========================= */
-        let match = enrichedGoogle.find(g => {
-
-            if (!g.geometry?.location) return false;
-
-            const gName = (g.name || "").toLowerCase();
-
-            const nameMatch =
-                name && gName && (
-                    gName.includes(name.toLowerCase()) ||
-                    name.toLowerCase().includes(gName)
-                );
-
-            const dist = getDistanceMiles(
-                lat,
-                lon,
-                g.geometry.location.lat,
-                g.geometry.location.lng
-            );
-
-            return nameMatch || dist < 1.0; // increased from 0.5 ? 1 mile
-        });
-
-        /* =========================
-           FALLBACK 2: WEAK MATCH
-        ========================= */
-        if (!match) {
-            match = enrichedGoogle.find(g => {
-                if (!g.geometry?.location) return false;
+        let match = enrichedGoogle
+            .map(g => {
+                if (!g.geometry?.location) return null;
 
                 const dist = getDistanceMiles(
                     lat,
@@ -288,28 +262,59 @@ async function enrich(overpassData) {
                     g.geometry.location.lng
                 );
 
-                return dist < 1.5; // wider fallback net
+                return { g, dist };
+            })
+            .filter(x => x && x.dist < 1.2)   // SAFE radius (not too strict, not too wide)
+            .sort((a, b) => a.dist - b.dist)[0]?.g;
+
+        /* =========================
+           2. NAME BOOST (ONLY FOR CONFIRMATION, NOT REQUIRED)
+        ========================= */
+        if (!match) {
+            match = enrichedGoogle.find(g => {
+                if (!g.geometry?.location) return false;
+
+                const gName = (g.name || "").toLowerCase();
+
+                return gName && facilityText.includes(gName);
             });
         }
 
         /* =========================
-           FILL MISSING DATA
+           3. LAST RESORT WIDER MATCH (CITY SUPPORT)
         ========================= */
-        if (match) {
-            name = name || match.name;
-            phone = phone || match.formatted_phone_number;
-            address = address || match.formatted_address;
+        if (!match) {
+            match = enrichedGoogle
+                .map(g => {
+                    if (!g.geometry?.location) return null;
+
+                    const dist = getDistanceMiles(
+                        lat,
+                        lon,
+                        g.geometry.location.lat,
+                        g.geometry.location.lng
+                    );
+
+                    return { g, dist };
+                })
+                .filter(x => x && x.dist < 2.5) // city-level fallback
+                .sort((a, b) => a.dist - b.dist)[0]?.g;
         }
 
         /* =========================
-           FINAL SAFETY FALLBACKS
+           4. FILL MISSING DATA (NON-BLOCKING)
         ========================= */
-        if (!address) {
-            address = "Address temporarily unavailable";
+        if (match) {
+            name = name || match.name;
+            phone = phone || match.formatted_phone_number || null;
+            address = address || match.formatted_address || null;
         }
 
-        if (!phone) {
-            phone = null; // keeps UI clean instead of fake numbers
+        /* =========================
+           5. FINAL FALLBACKS (NEVER BLOCK RESULTS)
+        ========================= */
+        if (!address) {
+            address = "Address not available";
         }
 
         return {
@@ -327,7 +332,6 @@ async function enrich(overpassData) {
         };
     }).filter(Boolean);
 }
-
 /* =======================
    RENDER
 ======================= */
