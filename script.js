@@ -3,10 +3,10 @@ console.log("script.js loaded");
 /* =======================
    MAP SETUP
 ======================= */
-let map = L.map('map').setView([39.8283, -98.5795], 4);
+let map = L.map("map").setView([39.8283, -98.5795], 4);
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors"
 }).addTo(map);
 
 setTimeout(() => map.invalidateSize(), 300);
@@ -22,7 +22,7 @@ let searchRadiusMiles = 10;
 let searchTimeout = null;
 
 /* =======================
-   GOOGLE CONFIG (DO NOT REMOVE KEY)
+   GOOGLE CONFIG
 ======================= */
 const GOOGLE_API_KEY = "AIzaSyBj-dyxJUvX_0i7VBsc36OAUZnv2u8lJ_I";
 
@@ -49,9 +49,7 @@ function getDistanceMiles(lat1, lon1, lat2, lon2) {
     return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * R;
 }
 
-function formatAddress(tags) {
-    if (!tags) return null;
-
+function formatAddress(tags = {}) {
     if (tags["addr:full"]) return tags["addr:full"];
 
     const parts = [
@@ -90,483 +88,141 @@ function openGoogleMaps(lat, lon) {
 function classifySpecialty(tags = {}) {
 
     const specialtyField =
-        tags?.["healthcare:speciality"] ||
-        tags?.["healthcare:specialty"] ||
-        tags?.speciality ||
-        tags?.specialty ||
+        tags["healthcare:speciality"] ||
+        tags["healthcare:specialty"] ||
+        tags.speciality ||
+        tags.specialty ||
         "";
 
     const t = (
         (tags.name || "") + " " +
         (tags.healthcare || "") + " " +
         specialtyField + " " +
-        JSON.stringify(tags || {})
+        JSON.stringify(tags)
     ).toLowerCase();
 
     const specialties = {
-        // your specialty map goes here
+        addiction_medicine: ["addiction", "substance"],
+        allergist: ["allergy", "immunology"],
+        anesthesiology: ["anesthesiology"],
+        bariatrics: ["bariatric", "weight loss"],
+        behavioral_health: ["behavioral", "mental health"],
+        cardiology: ["cardio", "heart"],
+        cardiothoracic_surgery: ["cardiothoracic", "heart surgery"],
+        chiropractor: ["chiropractor"],
+        colorectal_surgery: ["colorectal"],
+        critical_care: ["intensive care", "critical care"],
+        dentistry: ["dentist", "dental"],
+        dermatology: ["derm", "skin"],
+        emergency_medicine: ["emergency", "er"],
+        endocrinology: ["endocrinology"],
+        family_medicine: ["family medicine"],
+        fertility_reproductive: ["fertility", "ivf"],
+        gastroenterology: ["gastro", "digestive"],
+        geriatrics: ["geriatrics"],
+        general_surgery: ["general surgery"],
+        hematology: ["hematology"],
+        hospice: ["hospice"],
+        imaging_center: ["mri", "ct", "imaging"],
+        infectious_disease: ["infectious"],
+        internal_medicine: ["internal medicine"],
+        maternal_fetal: ["maternal", "high risk pregnancy"],
+        neonatology: ["neonatal", "nicu"],
+        nephrology: ["nephrology", "kidney"],
+        neurosurgery: ["neurosurgery", "brain surgery"],
+        neurology: ["neurology"],
+        obstetrics_gynecology: ["obgyn", "gynecology"],
+        occupational_therapy: ["occupational therapy"],
+        oncology: ["oncology", "cancer"],
+        ophthalmology: ["ophthalmology", "eye"],
+        orthodontics: ["orthodont"],
+        orthopedics: ["orthopedic"],
+        osteopathy: ["osteopathy"],
+        otolaryngology: ["ent", "ear nose throat"],
+        pain_management: ["pain management"],
+        pathology: ["pathology"],
+        pediatrics: ["pediatric"],
+        pharmacy: ["pharmacy", "drug", "apothecary", "chemist", "dispensary"],
+        physical_therapy: ["physical therapy"],      
+        psychiatry: ["psychiatry"],
+        psychology: ["psychology"],
+        physiatry: ["physiatry"],
+        plastic_surgery: ["plastic surgery"],
+        podiatry: ["podiatry"],
+        primary_care: ["primary care"],
+        pulmonology: ["pulmonology"],
+        radiology: ["radiology"],
+        rheumatology: ["rheumatology"],
+        sleep_medicine: ["sleep medicine"],
+        speech_therapy: ["speech therapy"],
+        sports_medicine: ["sports medicine"],
+        urgent_care: ["urgent care"],
+        urology: ["urology"],
+        vascular_medicine: ["vascular medicine", "vein"],
+        vascular_surgery: ["vascular surgery"]
     };
 
-    for (const [specialty, keywords] of Object.entries(specialties)) {
-        if (keywords.some(keyword => t.includes(keyword))) {
-            return specialty;
+    for (const [key, keywords] of Object.entries(specialties)) {
+        if (keywords.some(k => t.includes(k))) {
+            return key;
         }
     }
 
     return "unknown";
-}
-    addiction_medicine: [
-        "addiction medicine",
-        "substance abuse"
-    ],
-
-    allergist: [
-        "allergy",
-        "allergist",
-        "immunology",
-        "immunologist"
-    ],
-
-    anesthesiology: [
-        "anesthesiology",
-        "anesthesiologist"
-    ],
-
-    bariatrics: [
-        "bariatric",
-        "weight loss surgery"
-    ],
-    
-    behavioral_health: [
-        "behavioral health",
-        "behavioral medicine",
-        "mental health",
-        "mental wellness"
-    ],
-
-    cardiology: [
-        "cardiology",
-        "cardiologist",
-        "heart center",
-        "heart institute"
-    ],
-
-    cardiothoracic_surgery: [
-        "cardiothoracic surgery",
-        "thoracic surgery",
-        "cardiac surgery",
-        "heart surgery"
-    ],
-
-    chiropractor: [
-        "chiropractic",
-        "chiropractor"
-    ],
-
-    colorectal_surgery: [
-        "colorectal",
-        "colon and rectal"
-    ],
-
-    critical_care: [
-        "critical care",
-        "intensive care"
-    ],
-
-    dentistry: [
-        "dentist",
-        "dental",
-        "dentistry",
-        "oral surgery"
-    ],
-
-    dermatology: [
-        "dermatology",
-        "dermatologist",
-        "skin clinic"
-    ],
-
-    emergency_medicine: [
-        "emergency medicine",
-        "emergency room"
-    ],
-
-    endocrinology: [
-        "endocrinology",
-        "endocrinologist"
-    ],
-
-    family_medicine: [
-        "family medicine",
-        "family practice",
-        "family physician"
-    ],
-
-    fertility_reproductive: [
-        "fertility",
-        "reproductive medicine",
-        "ivf"
-    ],
-
-    gastroenterology: [
-        "gastroenterology",
-        "gastroenterologist",
-        "digestive health"
-    ],
-
-    geriatrics: [
-        "geriatrics",
-        "geriatric"
-    ],
-
-    general_surgery: [
-        "general surgery"
-    ],
-
-    hematology: [
-        "hematology",
-        "hematologist"
-    ],
-
-    hospice: [
-        "hospice"
-    ],
-
-    imaging_center: [
-        "imaging",
-        "diagnostic imaging",
-        "mri",
-        "ct scan",
-        "ultrasound center"
-    ],
-
-    infectious_disease: [
-        "infectious disease"
-    ],
-
-    internal_medicine: [
-        "internal medicine",
-        "internist"
-    ],
-
-    maternal_fetal: [
-        "maternal fetal",
-        "high risk pregnancy"
-    ],
-
-    neonatology: [
-        "neonatology",
-        "nicu"
-    ],
-
-    nephrology: [
-        "nephrology",
-        "nephrologist",
-        "kidney center"
-    ],
-
-    neurosurgery: [
-        "neurosurgery",
-        "neurosurgeon",
-        "brain surgery",
-        "spine surgery"
-    ],
-
-    neurology: [
-        "neurology",
-        "neurologist",
-        "neuroscience"
-    ],
-
-    obstetrics_gynecology: [
-        "obstetrics",
-        "gynecology",
-        "obgyn",
-        "ob-gyn"
-    ],
-
-    occupational_therapy: [
-        "occupational therapy",
-        "occupational therapist",
-        "ot clinic"
-    ],
-
-    oncology: [
-        "oncology",
-        "oncologist",
-        "cancer center"
-    ],
-
-    ophthalmology: [
-        "ophthalmology",
-        "ophthalmologist",
-        "eye center",
-        "eye clinic"
-    ],
-
-    orthodontics: [
-        "orthodontic",
-        "orthodontist"
-    ],
-
-    orthopedics: [
-        "orthopedic",
-        "orthopaedic"
-    ],
-
-    osteopathy: [
-        "osteopath",
-        "osteopathic"
-    ],
-
-    otolaryngology: [
-        "otolaryngology",
-        "ent",
-        "ear nose throat"
-    ],
-
-    pain_management: [
-        "pain management"
-    ],
-
-    pathology: [
-        "pathology",
-        "pathologist"
-    ],
-
-    pediatrics: [
-        "pediatric",
-        "pediatrics",
-        "children's clinic"
-    ],
-
-    physical_therapy: [
-        "physical therapy",
-        "physical therapist",
-        "rehabilitation"
-    ],
-
-    psychiatry: [
-        "psychiatry",
-        "psychiatrist"
-    ],
-
-    psychology: [
-        "psychology",
-        "psychologist",
-        "counseling psychology"
-    ],
-
-
-    physiatry: [
-        "physiatry",
-        "physical medicine"
-    ],
-
-    plastic_surgery: [
-        "plastic surgery",
-        "cosmetic surgery"
-    ],
-
-    podiatry: [
-        "podiatry",
-        "podiatrist",
-        "foot clinic"
-    ],
-
-    primary_care: [
-        "primary care"
-    ],
-
-    pulmonology: [
-        "pulmonology",
-        "pulmonologist",
-        "lung center"
-    ],
-
-    radiology: [
-        "radiology",
-        "radiologist"
-    ],
-
-    rheumatology: [
-        "rheumatology",
-        "rheumatologist"
-    ],
-
-    sleep_medicine: [
-        "sleep medicine",
-        "sleep center"
-    ],
-
-    speech_therapy: [
-        "speech therapy",
-        "speech therapist",
-        "speech pathology",
-        "speech-language pathology",
-        "slp"
-    ],
-
-    sports_medicine: [
-        "sports medicine",
-        "sports injury"
-    ],
-
-    urgent_care: [
-        "urgent care"
-    ],
-
-    urology: [
-        "urology",
-        "urologist"
-    ],
-
-    vascular_medicine: [
-        "vascular medicine",
-        "vascular specialist",
-        "vein clinic",
-        "vascular center"
-    ],
-
-    vascular_surgery: [
-        "vascular surgery"
-    ]
-};
-/* =======================
-   SPECIALTY CLASSIFIER END
-======================= */
-
-for (const [specialty, keywords] of Object.entries(specialties)) {
-    if (keywords.some(keyword => t.includes(keyword))) {
-        return specialty;
-    }
-}
-
-return "unknown";
 }
 
 /* =======================
    GEOCODING
 ======================= */
 async function geocode(address) {
-
     const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`
     );
 
-    const text = await res.text();
+    const data = await res.json();
 
-    try {
-        const data = JSON.parse(text);
+    if (!data.length) throw new Error("Location not found");
 
-        if (!Array.isArray(data) || !data.length) {
-            throw new Error("Not found");
-        }
-
-        return {
-            lat: Number(data[0].lat),
-            lon: Number(data[0].lon)
-        };
-
-    } catch (e) {
-        throw new Error("Geocoding failed");
-    }
+    return {
+        lat: Number(data[0].lat),
+        lon: Number(data[0].lon)
+    };
 }
 
 /* =======================
-   OVERPASS (PRIMARY DATA)
+   OVERPASS SEARCH
 ======================= */
 async function searchPlaces(lat, lon, radius) {
 
-    const safeRadius = Math.min(radius, 25);
-    const radiusMeters = safeRadius * 1609.34;
+    const meters = Math.min(radius, 25) * 1609.34;
 
     const query = `
 [out:json][timeout:25];
 (
-    node["amenity"~"hospital|clinic|doctors|dentist"](around:${radiusMeters},${lat},${lon});
-    way["amenity"~"hospital|clinic|doctors|dentist"](around:${radiusMeters},${lat},${lon});
-    relation["amenity"~"hospital|clinic|doctors|dentist"](around:${radiusMeters},${lat},${lon});
-
-    node["healthcare"](around:${radiusMeters},${lat},${lon});
-    way["healthcare"](around:${radiusMeters},${lat},${lon});
-    relation["healthcare"](around:${radiusMeters},${lat},${lon});
-
-    node["healthcare:speciality"](around:${radiusMeters},${lat},${lon});
-    way["healthcare:speciality"](around:${radiusMeters},${lat},${lon});
-    relation["healthcare:speciality"](around:${radiusMeters},${lat},${lon});
+  node["amenity"~"hospital|clinic|doctors|dentist"](around:${meters},${lat},${lon});
+  way["amenity"~"hospital|clinic|doctors|dentist"](around:${meters},${lat},${lon});
+  relation["amenity"~"hospital|clinic|doctors|dentist"](around:${meters},${lat},${lon});
+  node["healthcare"](around:${meters},${lat},${lon});
+  way["healthcare"](around:${meters},${lat},${lon});
+  relation["healthcare"](around:${meters},${lat},${lon});
 );
 out center tags;
 `;
 
-    await new Promise(r => setTimeout(r, 500));
-
     const res = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST",
-        headers: { "Content-Type": "text/plain" },
         body: query
     });
 
-    const text = await res.text();
-
-    try {
-        const json = JSON.parse(text);
-        return json.elements || [];
-    } catch {
-        throw new Error("Overpass API failed");
-    }
+    const data = await res.json();
+    return data.elements || [];
 }
 
 /* =======================
-   GOOGLE PLACES (ENRICHMENT)
+   ENRICH + CLASSIFY
 ======================= */
-async function googleNearby(lat, lon) {
-
-    if (GOOGLE_API_KEY === "AIzaSyBj-dyxJUvX_0i7VBsc36OAUZnv2u8lJ_I") return [];
-
-    const url =
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json` +
-        `?location=${lat},${lon}` +
-        `&radius=50000` +
-        `&type=hospital&key=${GOOGLE_API_KEY}`;
-
-    const res = await fetch(url);
-    const data = await res.json();
-
-    return data.results || [];
-}
-
-async function googleDetails(placeId) {
-
-    const url =
-        `https://maps.googleapis.com/maps/api/place/details/json` +
-        `?place_id=${placeId}` +
-        `&fields=name,formatted_phone_number,formatted_address,geometry` +
-        `&key=${GOOGLE_API_KEY}`;
-
-    const res = await fetch(url);
-    const data = await res.json();
-
-    return data.result;
-}
-
-/* =======================
-   ENRICHMENT ENGINE (FIXED)
-======================= */
-async function enrich(overpassData) {
-
-    const googleResults = await googleNearby(userLat, userLon);
-
-    const enrichedGoogle = [];
-
-    for (const g of googleResults) {
-        try {
-            const details = await googleDetails(g.place_id);
-            if (details) enrichedGoogle.push(details);
-        } catch { }
-    }
-
-    return overpassData.map(p => {
+function enrich(data) {
+    return data.map(p => {
 
         const tags = p.tags || {};
         const lat = p.lat || p.center?.lat;
@@ -574,65 +230,19 @@ async function enrich(overpassData) {
 
         if (!lat || !lon) return null;
 
-        let name = tags.name;
-        let phone = tags.phone || tags["contact:phone"];
-        let address = formatAddress(tags);
-
-        /* =======================
-           SMART MATCH (DISTANCE BASED — BEST METHOD)
-        ======================= */
-        if (!name || !phone || !address) {
-
-            const match = enrichedGoogle.find(g => {
-                if (!g.geometry?.location) return false;
-
-                const d = getDistanceMiles(
-                    lat,
-                    lon,
-                    g.geometry.location.lat,
-                    g.geometry.location.lng
-                );
-
-                return d < 0.5; // 0.5 mile radius match
-            });
-
-            if (match) {
-                name = name || match.name;
-                phone = phone || match.formatted_phone_number;
-                address = address || match.formatted_address;
-            }
-        }
-
         return {
             ...p,
-            tags: {
-                ...tags,
-                name,
-                phone,
-                "addr:full": address
-            },
             lat,
             lon,
-            specialty: (
-                tags["healthcare:speciality"] ||
-                tags["healthcare:specialty"] ||
-                tags.speciality ||
-                tags.specialty
-            )
-            ? (
-                tags["healthcare:speciality"] ||
-                tags["healthcare:specialty"] ||
-                tags.speciality ||
-                tags.specialty
-            ).toLowerCase()
-            : classifySpecialty(tags),
+            tags,
+            specialty: classifySpecialty(tags),
             distance: getDistanceMiles(userLat, userLon, lat, lon)
         };
     }).filter(Boolean);
 }
 
 /* =======================
-   RENDER RESULTS
+   RENDER
 ======================= */
 function render(data) {
 
@@ -663,14 +273,12 @@ function render(data) {
     filtered.forEach(p => {
 
         const name = p.tags.name || "Medical Facility";
-        const address = p.tags["addr:full"] || "Address not available";
+        const address = formatAddress(p.tags) || "Address not available";
         const phone = formatPhone(p.tags.phone || p.tags["contact:phone"]);
         const dist = p.distance.toFixed(2);
 
-        const marker = L.marker([p.lat, p.lon])
-            .addTo(map)
-            .bindPopup(name);
-
+        const marker = L.marker([p.lat, p.lon]).addTo(map);
+        marker.bindPopup(name);
         markers.push(marker);
 
         const div = document.createElement("div");
@@ -704,8 +312,6 @@ function render(data) {
             btn.onclick = e => {
                 e.stopPropagation();
                 copyToClipboard(btn.previousElementSibling.innerText);
-                btn.innerText = "Copied";
-                setTimeout(() => btn.innerText = "Copy", 1000);
             };
         });
 
@@ -717,8 +323,7 @@ function render(data) {
         results.appendChild(div);
     });
 
-    status.textContent =
-        `Found ${filtered.length} locations within ${searchRadiusMiles} miles`;
+    status.textContent = `Found ${filtered.length} locations within ${searchRadiusMiles} miles`;
 }
 
 /* =======================
@@ -731,32 +336,22 @@ async function runSearch() {
 
     if (!address) return alert("Enter an address");
 
-    try {
-        status.textContent = "Locating...";
+    status.textContent = "Searching...";
 
-        const loc = await geocode(address);
+    const loc = await geocode(address);
 
-        userLat = loc.lat;
-        userLon = loc.lon;
+    userLat = loc.lat;
+    userLon = loc.lon;
 
-        map.setView([userLat, userLon], 12);
+    map.setView([userLat, userLon], 12);
 
-        L.marker([userLat, userLon])
-            .addTo(map)
-            .bindPopup("Search Location");
+    L.marker([userLat, userLon]).addTo(map);
 
-        status.textContent = "Loading nearby medical facilities...";
+    const data = await searchPlaces(userLat, userLon, searchRadiusMiles);
 
-        const overpass = await searchPlaces(userLat, userLon, searchRadiusMiles);
+    const enriched = enrich(data);
 
-        const enriched = await enrich(overpass);
-
-        render(enriched);
-
-    } catch (err) {
-        console.error(err);
-        status.textContent = "Error: " + err.message;
-    }
+    render(enriched);
 }
 
 /* =======================
