@@ -221,8 +221,21 @@ out center tags;
 /* =======================
    ENRICH + CLASSIFY
 ======================= */
-function enrich(data) {
-    return data.map(p => {
+async function enrich(overpassData) {
+
+    const googleResults = await googleNearby(userLat, userLon);
+
+    const enrichedGoogle = [];
+
+    // Fetch full Google details
+    for (const g of googleResults) {
+        try {
+            const details = await googleDetails(g.place_id);
+            if (details) enrichedGoogle.push(details);
+        } catch (e) { }
+    }
+
+    return overpassData.map(p => {
 
         const tags = p.tags || {};
         const lat = p.lat || p.center?.lat;
@@ -230,11 +243,85 @@ function enrich(data) {
 
         if (!lat || !lon) return null;
 
+        let name = tags.name || "";
+        let phone = tags.phone || tags["contact:phone"] || "";
+        let address = formatAddress(tags);
+
+        const fullText = (name + " " + JSON.stringify(tags)).toLowerCase();
+
+        /* =========================
+           IMPROVED GOOGLE MATCHING
+        ========================= */
+        let match = enrichedGoogle.find(g => {
+
+            if (!g.geometry?.location) return false;
+
+            const gName = (g.name || "").toLowerCase();
+
+            const nameMatch =
+                name && gName && (
+                    gName.includes(name.toLowerCase()) ||
+                    name.toLowerCase().includes(gName)
+                );
+
+            const dist = getDistanceMiles(
+                lat,
+                lon,
+                g.geometry.location.lat,
+                g.geometry.location.lng
+            );
+
+            return nameMatch || dist < 1.0; // increased from 0.5 ? 1 mile
+        });
+
+        /* =========================
+           FALLBACK 2: WEAK MATCH
+        ========================= */
+        if (!match) {
+            match = enrichedGoogle.find(g => {
+                if (!g.geometry?.location) return false;
+
+                const dist = getDistanceMiles(
+                    lat,
+                    lon,
+                    g.geometry.location.lat,
+                    g.geometry.location.lng
+                );
+
+                return dist < 1.5; // wider fallback net
+            });
+        }
+
+        /* =========================
+           FILL MISSING DATA
+        ========================= */
+        if (match) {
+            name = name || match.name;
+            phone = phone || match.formatted_phone_number;
+            address = address || match.formatted_address;
+        }
+
+        /* =========================
+           FINAL SAFETY FALLBACKS
+        ========================= */
+        if (!address) {
+            address = "Address temporarily unavailable";
+        }
+
+        if (!phone) {
+            phone = null; // keeps UI clean instead of fake numbers
+        }
+
         return {
             ...p,
+            tags: {
+                ...tags,
+                name,
+                phone,
+                "addr:full": address
+            },
             lat,
             lon,
-            tags,
             specialty: classifySpecialty(tags),
             distance: getDistanceMiles(userLat, userLon, lat, lon)
         };
