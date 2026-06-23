@@ -87,27 +87,34 @@ function openGoogleMaps(lat, lon) {
 /* =======================
    SPECIALTY CLASSIFIER
 ======================= */
-function classifySpecialty(tags) {
+function classifySpecialty(tags = {}) {
 
-    ```
-const specialtyField =
-    (
-        tags["healthcare:speciality"] ||
-        tags["healthcare:specialty"] ||
-        tags.speciality ||
-        tags.specialty ||
-        ""
+    const specialtyField =
+        tags?.["healthcare:speciality"] ||
+        tags?.["healthcare:specialty"] ||
+        tags?.speciality ||
+        tags?.specialty ||
+        "";
+
+    const t = (
+        (tags.name || "") + " " +
+        (tags.healthcare || "") + " " +
+        specialtyField + " " +
+        JSON.stringify(tags || {})
     ).toLowerCase();
 
-const t = (
-    (tags.name || "") + " " +
-    (tags.healthcare || "") + " " +
-    specialtyField + " " +
-    JSON.stringify(tags)
-).toLowerCase();
+    const specialties = {
+        // your specialty map goes here
+    };
 
-const specialties = {
+    for (const [specialty, keywords] of Object.entries(specialties)) {
+        if (keywords.some(keyword => t.includes(keyword))) {
+            return specialty;
+        }
+    }
 
+    return "unknown";
+}
     addiction_medicine: [
         "addiction medicine",
         "substance abuse"
