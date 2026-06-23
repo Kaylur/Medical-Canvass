@@ -208,7 +208,7 @@ async function googleNearby(lat, lon) {
     const key = makeKey("google", lat, lon);
     if (cache.google.has(key)) return cache.google.get(key);
 
-    if (!GOOGLE_API_KEY || GOOGLE_API_KEY.includes("YOUR_KEY")) return [];
+    if (!GOOGLE_API_KEY || GOOGLE_API_KEY.includes("AIzaSyBj-dyxJUvX_0i7VBsc36OAUZnv2u8lJ_I")) return [];
 
     const url =
         `https://maps.googleapis.com/maps/api/place/nearbysearch/json` +
