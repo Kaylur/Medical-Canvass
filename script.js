@@ -22,6 +22,19 @@ let searchRadiusMiles = 10;
 let searchTimeout = null;
 
 /* =======================
+   SIMPLE CACHE (FAST)
+======================= */
+const cache = {
+    geocode: new Map(),
+    overpass: new Map(),
+    google: new Map()
+};
+
+function makeKey(...args) {
+    return args.join("|").toLowerCase();
+}
+
+/* =======================
    GOOGLE CONFIG
 ======================= */
 const GOOGLE_API_KEY = "AIzaSyBj-dyxJUvX_0i7VBsc36OAUZnv2u8lJ_I";
@@ -36,7 +49,6 @@ function clearMarkers() {
 
 function getDistanceMiles(lat1, lon1, lat2, lon2) {
     const R = 3958.8;
-
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
 
@@ -67,7 +79,6 @@ function formatPhone(phone) {
     if (!phone) return null;
 
     const d = phone.replace(/\D/g, "");
-
     if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
     if (d.length === 11 && d[0] === "1") return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
 
@@ -102,109 +113,77 @@ function classifySpecialty(tags = {}) {
     ).toLowerCase();
 
     const specialties = {
-        addiction_medicine: ["addiction", "substance"],
-        allergist: ["allergy", "immunology"],
-        anesthesiology: ["anesthesiology"],
-        bariatrics: ["bariatric", "weight loss"],
+        dentistry: ["dentist", "dental", "dentistry"],
+        psychiatry: ["psychiatry", "psychiatrist"],
+        psychology: ["psychology", "psychologist"],
         behavioral_health: ["behavioral", "mental health"],
-        cardiology: ["cardio", "heart"],
-        cardiothoracic_surgery: ["cardiothoracic", "heart surgery"],
-        chiropractor: ["chiropractor"],
-        colorectal_surgery: ["colorectal"],
-        critical_care: ["intensive care", "critical care"],
-        dentistry: ["dentist", "dental"],
-        dermatology: ["derm", "skin"],
-        emergency_medicine: ["emergency", "er"],
-        endocrinology: ["endocrinology"],
-        family_medicine: ["family medicine"],
-        fertility_reproductive: ["fertility", "ivf"],
-        gastroenterology: ["gastro", "digestive"],
-        geriatrics: ["geriatrics"],
-        general_surgery: ["general surgery"],
-        hematology: ["hematology"],
-        hospice: ["hospice"],
-        imaging_center: ["mri", "ct", "imaging"],
-        infectious_disease: ["infectious"],
-        internal_medicine: ["internal medicine"],
-        maternal_fetal: ["maternal", "high risk pregnancy"],
-        neonatology: ["neonatal", "nicu"],
-        nephrology: ["nephrology", "kidney"],
-        neurosurgery: ["neurosurgery", "brain surgery"],
-        neurology: ["neurology"],
-        obstetrics_gynecology: ["obgyn", "gynecology"],
         occupational_therapy: ["occupational therapy"],
-        oncology: ["oncology", "cancer"],
-        ophthalmology: ["ophthalmology", "eye"],
-        orthodontics: ["orthodont"],
-        orthopedics: ["orthopedic"],
-        osteopathy: ["osteopathy"],
-        otolaryngology: ["ent", "ear nose throat"],
-        pain_management: ["pain management"],
-        pathology: ["pathology"],
-        pediatrics: ["pediatric"],
-        pharmacy: ["pharmacy", "drug", "apothecary", "chemist", "dispensary"],
-        physical_therapy: ["physical therapy"],      
-        psychiatry: ["psychiatry"],
-        psychology: ["psychology"],
-        physiatry: ["physiatry"],
-        plastic_surgery: ["plastic surgery"],
-        podiatry: ["podiatry"],
-        primary_care: ["primary care"],
-        pulmonology: ["pulmonology"],
-        radiology: ["radiology"],
-        rheumatology: ["rheumatology"],
-        sleep_medicine: ["sleep medicine"],
         speech_therapy: ["speech therapy"],
-        sports_medicine: ["sports medicine"],
+        neurosurgery: ["neurosurgery", "brain surgery"],
+        cardiothoracic_surgery: ["cardiothoracic", "heart surgery"],
+        vascular_medicine: ["vascular", "vein"],
+        cardiology: ["cardio", "heart"],
+        orthopedics: ["orthopedic"],
+        pediatrics: ["pediatric"],
         urgent_care: ["urgent care"],
-        urology: ["urology"],
-        vascular_medicine: ["vascular medicine", "vein"],
-        vascular_surgery: ["vascular surgery"]
+        primary_care: ["primary care"],
+        radiology: ["radiology"],
+        dermatology: ["skin", "derm"],
+        neurology: ["neurology"],
+        oncology: ["oncology", "cancer"]
     };
 
     for (const [key, keywords] of Object.entries(specialties)) {
-        if (keywords.some(k => t.includes(k))) {
-            return key;
-        }
+        if (keywords.some(k => t.includes(k))) return key;
     }
 
     return "unknown";
 }
 
 /* =======================
-   GEOCODING
+   GEOCODING (cached)
 ======================= */
 async function geocode(address) {
+
+    const key = makeKey(address);
+    if (cache.geocode.has(key)) return cache.geocode.get(key);
+
     const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`
     );
 
     const data = await res.json();
 
-    if (!data.length) throw new Error("Location not found");
+    if (!data.length) throw new Error("Not found");
 
-    return {
+    const result = {
         lat: Number(data[0].lat),
         lon: Number(data[0].lon)
     };
+
+    cache.geocode.set(key, result);
+    return result;
 }
 
 /* =======================
-   OVERPASS SEARCH
+   OVERPASS SEARCH (cached)
 ======================= */
 async function searchPlaces(lat, lon, radius) {
+
+    const key = makeKey(lat, lon, radius);
+    if (cache.overpass.has(key)) return cache.overpass.get(key);
 
     const meters = Math.min(radius, 25) * 1609.34;
 
     const query = `
 [out:json][timeout:25];
 (
-  node["amenity"~"hospital|clinic|doctors|dentist"](around:${meters},${lat},${lon});
-  way["amenity"~"hospital|clinic|doctors|dentist"](around:${meters},${lat},${lon});
-  relation["amenity"~"hospital|clinic|doctors|dentist"](around:${meters},${lat},${lon});
-  node["healthcare"](around:${meters},${lat},${lon});
-  way["healthcare"](around:${meters},${lat},${lon});
-  relation["healthcare"](around:${meters},${lat},${lon});
+    node["amenity"~"hospital|clinic|doctors|dentist"](around:${meters},${lat},${lon});
+    way["amenity"~"hospital|clinic|doctors|dentist"](around:${meters},${lat},${lon});
+    relation["amenity"~"hospital|clinic|doctors|dentist"](around:${meters},${lat},${lon});
+    node["healthcare"](around:${meters},${lat},${lon});
+    way["healthcare"](around:${meters},${lat},${lon});
+    relation["healthcare"](around:${meters},${lat},${lon});
 );
 out center tags;
 `;
@@ -214,25 +193,42 @@ out center tags;
         body: query
     });
 
-    const data = await res.json();
-    return data.elements || [];
+    const json = await res.json();
+    const result = json.elements || [];
+
+    cache.overpass.set(key, result);
+    return result;
 }
 
 /* =======================
-   ENRICH + CLASSIFY
+   GOOGLE ENRICHMENT (safe)
+======================= */
+async function googleNearby(lat, lon) {
+
+    const key = makeKey("google", lat, lon);
+    if (cache.google.has(key)) return cache.google.get(key);
+
+    if (!GOOGLE_API_KEY || GOOGLE_API_KEY.includes("YOUR_KEY")) return [];
+
+    const url =
+        `https://maps.googleapis.com/maps/api/place/nearbysearch/json` +
+        `?location=${lat},${lon}&radius=50000&type=hospital&key=${GOOGLE_API_KEY}`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    const results = data.results || [];
+    cache.google.set(key, results);
+
+    return results;
+}
+
+/* =======================
+   ENRICHMENT (FIXED)
 ======================= */
 async function enrich(overpassData) {
 
     const googleResults = await googleNearby(userLat, userLon);
-
-    const enrichedGoogle = [];
-
-    for (const g of googleResults) {
-        try {
-            const details = await googleDetails(g.place_id);
-            if (details) enrichedGoogle.push(details);
-        } catch { }
-    }
 
     return overpassData.map(p => {
 
@@ -242,79 +238,27 @@ async function enrich(overpassData) {
 
         if (!lat || !lon) return null;
 
-        let name = tags.name || "";
-        let phone = tags.phone || tags["contact:phone"] || "";
+        let name = tags.name;
+        let phone = tags.phone || tags["contact:phone"];
         let address = formatAddress(tags);
 
-        const facilityText = (name + " " + JSON.stringify(tags)).toLowerCase();
+        const match = googleResults.find(g => {
+            if (!g.geometry?.location) return false;
 
-        /* =========================
-           1. DISTANCE-FIRST MATCH (SAFE DEFAULT)
-        ========================= */
-        let match = enrichedGoogle
-            .map(g => {
-                if (!g.geometry?.location) return null;
+            const d = getDistanceMiles(
+                lat,
+                lon,
+                g.geometry.location.lat,
+                g.geometry.location.lng
+            );
 
-                const dist = getDistanceMiles(
-                    lat,
-                    lon,
-                    g.geometry.location.lat,
-                    g.geometry.location.lng
-                );
+            return d < 0.8;
+        });
 
-                return { g, dist };
-            })
-            .filter(x => x && x.dist < 1.2)   // SAFE radius (not too strict, not too wide)
-            .sort((a, b) => a.dist - b.dist)[0]?.g;
-
-        /* =========================
-           2. NAME BOOST (ONLY FOR CONFIRMATION, NOT REQUIRED)
-        ========================= */
-        if (!match) {
-            match = enrichedGoogle.find(g => {
-                if (!g.geometry?.location) return false;
-
-                const gName = (g.name || "").toLowerCase();
-
-                return gName && facilityText.includes(gName);
-            });
-        }
-
-        /* =========================
-           3. LAST RESORT WIDER MATCH (CITY SUPPORT)
-        ========================= */
-        if (!match) {
-            match = enrichedGoogle
-                .map(g => {
-                    if (!g.geometry?.location) return null;
-
-                    const dist = getDistanceMiles(
-                        lat,
-                        lon,
-                        g.geometry.location.lat,
-                        g.geometry.location.lng
-                    );
-
-                    return { g, dist };
-                })
-                .filter(x => x && x.dist < 2.5) // city-level fallback
-                .sort((a, b) => a.dist - b.dist)[0]?.g;
-        }
-
-        /* =========================
-           4. FILL MISSING DATA (NON-BLOCKING)
-        ========================= */
         if (match) {
             name = name || match.name;
-            phone = phone || match.formatted_phone_number || null;
-            address = address || match.formatted_address || null;
-        }
-
-        /* =========================
-           5. FINAL FALLBACKS (NEVER BLOCK RESULTS)
-        ========================= */
-        if (!address) {
-            address = "Address not available";
+            phone = phone || match.formatted_phone_number;
+            address = address || match.formatted_address;
         }
 
         return {
@@ -323,7 +267,7 @@ async function enrich(overpassData) {
                 ...tags,
                 name,
                 phone,
-                "addr:full": address
+                "addr:full": address || "Address not available"
             },
             lat,
             lon,
@@ -332,6 +276,7 @@ async function enrich(overpassData) {
         };
     }).filter(Boolean);
 }
+
 /* =======================
    RENDER
 ======================= */
@@ -343,28 +288,12 @@ function render(data) {
     results.innerHTML = "";
     clearMarkers();
 
-    const typeFilter = document.getElementById("typeFilter").value;
-    const specFilter = document.getElementById("specialtyFilter").value;
-
-    const filtered = data.filter(p => {
-
-        const t = p.tags || {};
-
-        if (typeFilter !== "all") {
-            if (t.amenity !== typeFilter && t.healthcare !== typeFilter) return false;
-        }
-
-        if (specFilter !== "all" && p.specialty !== specFilter) return false;
-
-        return true;
-    });
-
-    filtered.sort((a, b) => a.distance - b.distance);
+    const filtered = data.sort((a, b) => a.distance - b.distance);
 
     filtered.forEach(p => {
 
         const name = p.tags.name || "Medical Facility";
-        const address = formatAddress(p.tags) || "Address not available";
+        const address = p.tags["addr:full"];
         const phone = formatPhone(p.tags.phone || p.tags["contact:phone"]);
         const dist = p.distance.toFixed(2);
 
@@ -378,7 +307,7 @@ function render(data) {
         div.innerHTML = `
             <div class="card-header">
                 <h3>${name}</h3>
-                <span class="distance">${dist} mi</span>
+                <span>${dist} mi</span>
             </div>
 
             <div class="field-row">
@@ -392,9 +321,7 @@ function render(data) {
                 <button class="copy-btn">Copy</button>
             </div>` : ""}
 
-            <div class="action-row">
-                <button class="map-btn">Open in Google Maps</button>
-            </div>
+            <button class="map-btn">Open in Maps</button>
         `;
 
         div.onclick = () => map.setView([p.lat, p.lon], 15);
@@ -414,11 +341,11 @@ function render(data) {
         results.appendChild(div);
     });
 
-    status.textContent = `Found ${filtered.length} locations within ${searchRadiusMiles} miles`;
+    status.textContent = `Found ${filtered.length} locations`;
 }
 
 /* =======================
-   MAIN SEARCH
+   SEARCH
 ======================= */
 async function runSearch() {
 
@@ -439,8 +366,7 @@ async function runSearch() {
     L.marker([userLat, userLon]).addTo(map);
 
     const data = await searchPlaces(userLat, userLon, searchRadiusMiles);
-
-    const enriched = enrich(data);
+    const enriched = await enrich(data);
 
     render(enriched);
 }
@@ -461,7 +387,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (userLat && userLon) {
             clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(runSearch, 500);
+            searchTimeout = setTimeout(runSearch, 400);
         }
     };
 });
