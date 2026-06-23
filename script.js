@@ -88,23 +88,355 @@ function openGoogleMaps(lat, lon) {
    SPECIALTY CLASSIFIER
 ======================= */
 function classifySpecialty(tags) {
-    const t = ((tags.name || "") + " " + JSON.stringify(tags)).toLowerCase();
 
-    if (t.includes("ortho")) return "orthopedics";
-    if (t.includes("urgent")) return "urgent_care";
-    if (t.includes("pediatric")) return "pediatrics";
-    if (t.includes("family")) return "family_medicine";
-    if (t.includes("primary")) return "primary_care";
-    if (t.includes("chiro")) return "chiropractor";
-    if (t.includes("neuro")) return "neurology";
-    if (t.includes("cardio")) return "cardiology";
-    if (t.includes("derma")) return "dermatology";
-    if (t.includes("oncolog")) return "oncology";
-    if (t.includes("radiolog")) return "radiology";
-    if (t.includes("dent")) return "dentistry";
+    ```
+const specialtyField =
+    (
+        tags["healthcare:speciality"] ||
+        tags["healthcare:specialty"] ||
+        tags.speciality ||
+        tags.specialty ||
+        ""
+    ).toLowerCase();
 
-    return "unknown";
+const t = (
+    (tags.name || "") + " " +
+    (tags.healthcare || "") + " " +
+    specialtyField + " " +
+    JSON.stringify(tags)
+).toLowerCase();
+
+const specialties = {
+
+    addiction_medicine: [
+        "addiction medicine",
+        "substance abuse"
+    ],
+
+    allergist: [
+        "allergy",
+        "allergist",
+        "immunology",
+        "immunologist"
+    ],
+
+    anesthesiology: [
+        "anesthesiology",
+        "anesthesiologist"
+    ],
+
+    bariatrics: [
+        "bariatric",
+        "weight loss surgery"
+    ],
+    
+    behavioral_health: [
+        "behavioral health",
+        "behavioral medicine",
+        "mental health",
+        "mental wellness"
+    ],
+
+    cardiology: [
+        "cardiology",
+        "cardiologist",
+        "heart center",
+        "heart institute"
+    ],
+
+    cardiothoracic_surgery: [
+        "cardiothoracic surgery",
+        "thoracic surgery",
+        "cardiac surgery",
+        "heart surgery"
+    ],
+
+    chiropractor: [
+        "chiropractic",
+        "chiropractor"
+    ],
+
+    colorectal_surgery: [
+        "colorectal",
+        "colon and rectal"
+    ],
+
+    critical_care: [
+        "critical care",
+        "intensive care"
+    ],
+
+    dentistry: [
+        "dentist",
+        "dental",
+        "dentistry",
+        "oral surgery"
+    ],
+
+    dermatology: [
+        "dermatology",
+        "dermatologist",
+        "skin clinic"
+    ],
+
+    emergency_medicine: [
+        "emergency medicine",
+        "emergency room"
+    ],
+
+    endocrinology: [
+        "endocrinology",
+        "endocrinologist"
+    ],
+
+    family_medicine: [
+        "family medicine",
+        "family practice",
+        "family physician"
+    ],
+
+    fertility_reproductive: [
+        "fertility",
+        "reproductive medicine",
+        "ivf"
+    ],
+
+    gastroenterology: [
+        "gastroenterology",
+        "gastroenterologist",
+        "digestive health"
+    ],
+
+    geriatrics: [
+        "geriatrics",
+        "geriatric"
+    ],
+
+    general_surgery: [
+        "general surgery"
+    ],
+
+    hematology: [
+        "hematology",
+        "hematologist"
+    ],
+
+    hospice: [
+        "hospice"
+    ],
+
+    imaging_center: [
+        "imaging",
+        "diagnostic imaging",
+        "mri",
+        "ct scan",
+        "ultrasound center"
+    ],
+
+    infectious_disease: [
+        "infectious disease"
+    ],
+
+    internal_medicine: [
+        "internal medicine",
+        "internist"
+    ],
+
+    maternal_fetal: [
+        "maternal fetal",
+        "high risk pregnancy"
+    ],
+
+    neonatology: [
+        "neonatology",
+        "nicu"
+    ],
+
+    nephrology: [
+        "nephrology",
+        "nephrologist",
+        "kidney center"
+    ],
+
+    neurosurgery: [
+        "neurosurgery",
+        "neurosurgeon",
+        "brain surgery",
+        "spine surgery"
+    ],
+
+    neurology: [
+        "neurology",
+        "neurologist",
+        "neuroscience"
+    ],
+
+    obstetrics_gynecology: [
+        "obstetrics",
+        "gynecology",
+        "obgyn",
+        "ob-gyn"
+    ],
+
+    occupational_therapy: [
+        "occupational therapy",
+        "occupational therapist",
+        "ot clinic"
+    ],
+
+    oncology: [
+        "oncology",
+        "oncologist",
+        "cancer center"
+    ],
+
+    ophthalmology: [
+        "ophthalmology",
+        "ophthalmologist",
+        "eye center",
+        "eye clinic"
+    ],
+
+    orthodontics: [
+        "orthodontic",
+        "orthodontist"
+    ],
+
+    orthopedics: [
+        "orthopedic",
+        "orthopaedic"
+    ],
+
+    osteopathy: [
+        "osteopath",
+        "osteopathic"
+    ],
+
+    otolaryngology: [
+        "otolaryngology",
+        "ent",
+        "ear nose throat"
+    ],
+
+    pain_management: [
+        "pain management"
+    ],
+
+    pathology: [
+        "pathology",
+        "pathologist"
+    ],
+
+    pediatrics: [
+        "pediatric",
+        "pediatrics",
+        "children's clinic"
+    ],
+
+    physical_therapy: [
+        "physical therapy",
+        "physical therapist",
+        "rehabilitation"
+    ],
+
+    psychiatry: [
+        "psychiatry",
+        "psychiatrist"
+    ],
+
+    psychology: [
+        "psychology",
+        "psychologist",
+        "counseling psychology"
+    ],
+
+
+    physiatry: [
+        "physiatry",
+        "physical medicine"
+    ],
+
+    plastic_surgery: [
+        "plastic surgery",
+        "cosmetic surgery"
+    ],
+
+    podiatry: [
+        "podiatry",
+        "podiatrist",
+        "foot clinic"
+    ],
+
+    primary_care: [
+        "primary care"
+    ],
+
+    pulmonology: [
+        "pulmonology",
+        "pulmonologist",
+        "lung center"
+    ],
+
+    radiology: [
+        "radiology",
+        "radiologist"
+    ],
+
+    rheumatology: [
+        "rheumatology",
+        "rheumatologist"
+    ],
+
+    sleep_medicine: [
+        "sleep medicine",
+        "sleep center"
+    ],
+
+    speech_therapy: [
+        "speech therapy",
+        "speech therapist",
+        "speech pathology",
+        "speech-language pathology",
+        "slp"
+    ],
+
+    sports_medicine: [
+        "sports medicine",
+        "sports injury"
+    ],
+
+    urgent_care: [
+        "urgent care"
+    ],
+
+    urology: [
+        "urology",
+        "urologist"
+    ],
+
+    vascular_medicine: [
+        "vascular medicine",
+        "vascular specialist",
+        "vein clinic",
+        "vascular center"
+    ],
+
+    vascular_surgery: [
+        "vascular surgery"
+    ]
+};
+
+for (const [specialty, keywords] of Object.entries(specialties)) {
+    if (keywords.some(keyword => t.includes(keyword))) {
+        return specialty;
+    }
 }
+
+return "unknown";
+```
+
+}
+
 
 /* =======================
    GEOCODING
@@ -145,6 +477,12 @@ async function searchPlaces(lat, lon, radius) {
  way["amenity"~"hospital|clinic|doctors|dentist"](around:${safeRadius * 1609.34},${lat},${lon});
  relation["amenity"~"hospital|clinic|doctors|dentist"](around:${safeRadius * 1609.34},${lat},${lon});
  node["healthcare"](around:${safeRadius * 1609.34},${lat},${lon});
+way["healthcare"](around:${safeRadius * 1609.34},${lat},${lon});
+relation["healthcare"](around:${safeRadius * 1609.34},${lat},${lon});
+
+node["healthcare:speciality"](around:${safeRadius * 1609.34},${lat},${lon});
+way["healthcare:speciality"](around:${safeRadius * 1609.34},${lat},${lon});
+relation["healthcare:speciality"](around:${safeRadius * 1609.34},${lat},${lon});
 );
 out center tags;
 `;
@@ -263,7 +601,19 @@ async function enrich(overpassData) {
             },
             lat,
             lon,
-            specialty: classifySpecialty(tags),
+            specialty: (
+                tags["healthcare:speciality"] ||
+                tags["healthcare:specialty"] ||
+                tags.speciality ||
+                tags.specialty
+            )
+            ? (
+                tags["healthcare:speciality"] ||
+                tags["healthcare:specialty"] ||
+                tags.speciality ||
+                tags.specialty
+            ).toLowerCase()
+            : classifySpecialty(tags),
             distance: getDistanceMiles(userLat, userLon, lat, lon)
         };
     }).filter(Boolean);
