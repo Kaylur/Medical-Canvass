@@ -432,6 +432,9 @@ function classifySpecialty(tags = {}) {
         "vascular surgery"
     ]
 };
+/* =======================
+   SPECIALTY CLASSIFIER END
+======================= */
 
 for (const [specialty, keywords] of Object.entries(specialties)) {
     if (keywords.some(keyword => t.includes(keyword))) {
@@ -440,10 +443,7 @@ for (const [specialty, keywords] of Object.entries(specialties)) {
 }
 
 return "unknown";
-```
-
 }
-
 
 /* =======================
    GEOCODING
@@ -458,11 +458,14 @@ async function geocode(address) {
 
     try {
         const data = JSON.parse(text);
-        if (!data.length) throw new Error("Not found");
+
+        if (!Array.isArray(data) || !data.length) {
+            throw new Error("Not found");
+        }
 
         return {
-            lat: +data[0].lat,
-            lon: +data[0].lon
+            lat: Number(data[0].lat),
+            lon: Number(data[0].lon)
         };
 
     } catch (e) {
@@ -476,20 +479,22 @@ async function geocode(address) {
 async function searchPlaces(lat, lon, radius) {
 
     const safeRadius = Math.min(radius, 25);
+    const radiusMeters = safeRadius * 1609.34;
 
     const query = `
 [out:json][timeout:25];
 (
- node["amenity"~"hospital|clinic|doctors|dentist"](around:${safeRadius * 1609.34},${lat},${lon});
- way["amenity"~"hospital|clinic|doctors|dentist"](around:${safeRadius * 1609.34},${lat},${lon});
- relation["amenity"~"hospital|clinic|doctors|dentist"](around:${safeRadius * 1609.34},${lat},${lon});
- node["healthcare"](around:${safeRadius * 1609.34},${lat},${lon});
-way["healthcare"](around:${safeRadius * 1609.34},${lat},${lon});
-relation["healthcare"](around:${safeRadius * 1609.34},${lat},${lon});
+    node["amenity"~"hospital|clinic|doctors|dentist"](around:${radiusMeters},${lat},${lon});
+    way["amenity"~"hospital|clinic|doctors|dentist"](around:${radiusMeters},${lat},${lon});
+    relation["amenity"~"hospital|clinic|doctors|dentist"](around:${radiusMeters},${lat},${lon});
 
-node["healthcare:speciality"](around:${safeRadius * 1609.34},${lat},${lon});
-way["healthcare:speciality"](around:${safeRadius * 1609.34},${lat},${lon});
-relation["healthcare:speciality"](around:${safeRadius * 1609.34},${lat},${lon});
+    node["healthcare"](around:${radiusMeters},${lat},${lon});
+    way["healthcare"](around:${radiusMeters},${lat},${lon});
+    relation["healthcare"](around:${radiusMeters},${lat},${lon});
+
+    node["healthcare:speciality"](around:${radiusMeters},${lat},${lon});
+    way["healthcare:speciality"](around:${radiusMeters},${lat},${lon});
+    relation["healthcare:speciality"](around:${radiusMeters},${lat},${lon});
 );
 out center tags;
 `;
